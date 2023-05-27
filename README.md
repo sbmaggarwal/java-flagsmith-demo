@@ -1,4 +1,4 @@
-# Flagsmith Java Feature Flag Demo
+# Flagsmith: Java Feature Flag Demo
 
 This is a Java server application that demonstrates how to use feature flags with the Flagsmith Java SDK. It allows you to control the behavior of the application dynamically without redeployment.
 
