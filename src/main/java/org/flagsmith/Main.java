@@ -61,17 +61,14 @@ public class Main {
     }
 
     static class BooksHandler implements HttpHandler {
+
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             String requestMethod = exchange.getRequestMethod();
             if ("GET".equals(requestMethod)) {
                 handleGetBooksRequest(exchange);
             } else if ("POST".equals(requestMethod)) {
-                try {
-                    handlePostBooksRequest(exchange);
-                } catch (FlagsmithClientError e) {
-                    System.out.println("Flagsmith error occurred.");
-                }
+                handlePostBooksRequest(exchange);
             } else {
                 sendResponse(exchange, 405, "Method not allowed");
             }
@@ -82,19 +79,38 @@ public class Main {
             sendResponse(exchange, 200, jsonResponse);
         }
 
-        private void handlePostBooksRequest(HttpExchange exchange) throws IOException, FlagsmithClientError {
+        private void handlePostBooksRequest(HttpExchange exchange) throws IOException {
 
-            Flags flags = flagsmithClient.getIdentityFlags(ADD_BOOKS_FEATURE_FLAG);
+            Flags flags;
+            boolean allowAddBooks;
+            int minPrice;
 
-            boolean allowAddBooks = Boolean.parseBoolean(flags.getFeatureValue(ADD_BOOKS_FEATURE_FLAG).toString());
-
-            if (allowAddBooks) {
-                Book newBook = getBookFromRequestBody(exchange);
-                books.add(newBook);
-                sendResponse(exchange, 201, "Book added successfully");
-            } else {
-                sendResponse(exchange, 403, "Adding books is currently disabled");
+            try {
+                flags = flagsmithClient.getEnvironmentFlags();
+                allowAddBooks = flags.isFeatureEnabled(ADD_BOOKS_FEATURE_FLAG);
+                minPrice = (int) flags.getFeatureValue(ADD_BOOKS_FEATURE_FLAG);
+            } catch (FlagsmithClientError e) {
+                throw new RuntimeException(e);
             }
+
+            String resp;
+            int respCode;
+            if (allowAddBooks) {
+                Book book = getBookFromRequestBody(exchange);
+                if (Integer.parseInt(book.getPrice()) >= minPrice) {
+                    books.add(book);
+                    resp = "book added successfully";
+                    respCode = 201;
+                } else {
+                    resp = "book value less than minimum price allowed";
+                    respCode = 406;
+                }
+            } else {
+                resp = "method not allowed. Please come back later";
+                respCode = 403;
+            }
+
+            sendResponse(exchange, respCode, resp);
         }
 
         private Book getBookFromRequestBody(HttpExchange exchange) throws IOException {
